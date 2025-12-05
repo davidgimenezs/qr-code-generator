@@ -71,42 +71,52 @@ class SVGQRGenerator:
             logo_size_ratio = self.logo_size_ratio
             
         try:
-            # Open and process logo
-            logo = Image.open(logo_path)
-            
+            # Ensure images use RGBA so we can composite with alpha
+            qr_img = qr_img.convert('RGBA')
+
+            # Open and process logo (keep alpha)
+            logo = Image.open(logo_path).convert('RGBA')
+
             # Calculate logo size
             qr_width, qr_height = qr_img.size
             logo_size = int(min(qr_width, qr_height) * logo_size_ratio)
-            
+
             # Resize logo maintaining aspect ratio
             logo.thumbnail((logo_size, logo_size), Image.Resampling.LANCZOS)
-            
-            # Create a white background for the logo area
-            logo_bg = Image.new('RGB', (logo_size + 20, logo_size + 20), 'white')
-            
-            # Center the logo on the background
-            logo_bg_w, logo_bg_h = logo_bg.size
-            logo_w, logo_h = logo.size
-            logo_x = (logo_bg_w - logo_w) // 2
-            logo_y = (logo_bg_h - logo_h) // 2
-            
-            # Handle transparency
-            if logo.mode == 'RGBA':
-                logo_bg.paste(logo, (logo_x, logo_y), logo)
-            else:
-                logo_bg.paste(logo, (logo_x, logo_y))
-            
-            # Paste logo background onto QR code
+
+            # Padding around logo so it doesn't touch QR modules
+            padding = max(int(logo_size * 0.08), 8)
+            bg_w = logo.size[0] + padding * 2
+            bg_h = logo.size[1] + padding * 2
+
+            # Create a transparent background and draw a white rounded rect for contrast
+            logo_bg = Image.new('RGBA', (bg_w, bg_h), (255, 255, 255, 0))
+            try:
+                # Draw rounded rectangle (opaque white)
+                radius = max(6, int(min(bg_w, bg_h) * 0.12))
+                draw = ImageDraw.Draw(logo_bg)
+                draw.rounded_rectangle([0, 0, bg_w, bg_h], radius=radius, fill=(255, 255, 255, 255))
+            except Exception:
+                # Fallback: plain rectangle
+                draw = ImageDraw.Draw(logo_bg)
+                draw.rectangle([0, 0, bg_w, bg_h], fill=(255, 255, 255, 255))
+
+            # Paste the logo centered on the background using its alpha channel as mask
+            logo_x = (bg_w - logo.size[0]) // 2
+            logo_y = (bg_h - logo.size[1]) // 2
+            logo_bg.paste(logo, (logo_x, logo_y), logo)
+
+            # Paste onto QR image using alpha compositing to preserve transparency
             qr_img_copy = qr_img.copy()
             qr_w, qr_h = qr_img_copy.size
-            bg_w, bg_h = logo_bg.size
             pos_x = (qr_w - bg_w) // 2
             pos_y = (qr_h - bg_h) // 2
-            
-            qr_img_copy.paste(logo_bg, (pos_x, pos_y))
-            
-            return qr_img_copy
-            
+
+            qr_img_copy.paste(logo_bg, (pos_x, pos_y), logo_bg)
+
+            # Return to RGB (no alpha) for downstream processing
+            return qr_img_copy.convert('RGB')
+
         except Exception as e:
             print(f"Error adding logo: {e}")
             return qr_img

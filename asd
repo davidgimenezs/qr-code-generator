@@ -1,0 +1,1 @@
+ C:/Users/David/Desktop/qr-code-generator/.venv/Scripts/python.exe qr_generator.py "https://yvyralink.cpfiuna.io" -o yvyralink.svg -l cpf-logo.png
