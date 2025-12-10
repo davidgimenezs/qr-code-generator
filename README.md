@@ -236,4 +236,4 @@ This project is open source. Feel free to use and modify as needed.
 
 ## Contributing
 
-Contributions are welcome! Feel free to submit issues and pull requests.
+Contributions are welcome! Feel free to submit issues and pull requests. :)
