@@ -197,12 +197,59 @@ class SVGQRGenerator:
         
         return svg_content
 
+    def generate_qr_png(self, data, output_path=None, logo_path=None,
+                        fill_color='black', back_color='white',
+                        box_size=10, border=4, logo_size_ratio=None):
+        """
+        Generate a complete QR code in PNG format with optional logo.
+
+        Args:
+            data (str): Data to encode
+            output_path (str, optional): Path to save PNG file
+            logo_path (str, optional): Path to logo image
+            fill_color (str): QR code color
+            back_color (str): Background color
+            box_size (int): Size of each module
+            border (int): Border size
+            logo_size_ratio (float, optional): Logo size ratio
+
+        Returns:
+            PIL.Image: The generated QR code image
+        """
+        # Create QR code
+        qr_img = self.create_qr_code(
+            data=data,
+            fill_color=fill_color,
+            back_color=back_color,
+            box_size=box_size,
+            border=border
+        )
+
+        # Add logo if provided
+        if logo_path and Path(logo_path).exists():
+            qr_img = self.add_logo_to_qr(qr_img, logo_path, logo_size_ratio)
+        elif logo_path:
+            print(f"Warning: Logo file not found: {logo_path}")
+
+        # Convert to RGB for PNG (in case of RGBA from logo step)
+        if hasattr(qr_img, 'mode') and qr_img.mode == 'RGBA':
+            qr_img = qr_img.convert('RGB')
+
+        # Save to file if path provided
+        if output_path:
+            qr_img.save(output_path, format='PNG')
+            print(f"PNG saved to: {output_path}")
+
+        return qr_img
+
 
 def main():
     """Command line interface for the QR code generator."""
-    parser = argparse.ArgumentParser(description='Generate SVG QR codes with optional logo')
+    parser = argparse.ArgumentParser(description='Generate SVG or PNG QR codes with optional logo')
     parser.add_argument('data', help='Data to encode in the QR code')
-    parser.add_argument('-o', '--output', help='Output SVG file path')
+    parser.add_argument('-o', '--output', help='Output file path')
+    parser.add_argument('-f', '--format', choices=['svg', 'png'], default='svg',
+                       help='Output format: svg or png (default: svg)')
     parser.add_argument('-l', '--logo', help='Path to logo image file')
     parser.add_argument('--fill-color', default='black', help='QR code color (default: black)')
     parser.add_argument('--back-color', default='white', help='Background color (default: white)')
@@ -221,8 +268,7 @@ def main():
     generator = SVGQRGenerator()
     
     try:
-        # Generate QR code
-        svg_content = generator.generate_qr_svg(
+        common = dict(
             data=args.data,
             output_path=args.output,
             logo_path=args.logo,
@@ -232,12 +278,16 @@ def main():
             border=args.border,
             logo_size_ratio=args.logo_size
         )
-        
-        # If no output file specified, print to stdout
-        if not args.output:
-            print("SVG Content:")
-            print(svg_content)
-            
+
+        if args.format == 'png':
+            generator.generate_qr_png(**common)
+        else:
+            svg_content = generator.generate_qr_svg(**common)
+            # If no output file specified, print to stdout
+            if not args.output:
+                print("SVG Content:")
+                print(svg_content)
+
         print(f"Successfully generated QR code for: {args.data}")
         
     except Exception as e:

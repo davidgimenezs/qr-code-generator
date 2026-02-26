@@ -37,6 +37,8 @@ class QRGui(ttk.Frame):
         self.box_size_var = tk.IntVar(value=10)
         self.border_var = tk.IntVar(value=4)
         self.logo_size_var = tk.DoubleVar(value=0.2)
+        self.format_var = tk.StringVar(value='SVG')
+        self.format_var.trace_add('write', self._on_format_change)
 
         self._build_ui()
 
@@ -46,7 +48,7 @@ class QRGui(ttk.Frame):
         ttk.Entry(self, textvariable=self.data_var, width=60).grid(column=1, row=0, columnspan=3, sticky='ew')
 
         # Output
-        ttk.Label(self, text='Output SVG:').grid(column=0, row=1, sticky='w')
+        ttk.Label(self, text='Output file:').grid(column=0, row=1, sticky='w')
         ttk.Entry(self, textvariable=self.output_var, width=48).grid(column=1, row=1, sticky='ew')
         ttk.Button(self, text='Browse', command=self.browse_output).grid(column=2, row=1, sticky='w')
 
@@ -70,21 +72,41 @@ class QRGui(ttk.Frame):
         ttk.Label(self, text='Logo size ratio:').grid(column=0, row=5, sticky='w')
         ttk.Spinbox(self, from_=0.05, to=0.5, increment=0.01, format='%.2f', textvariable=self.logo_size_var, width=8).grid(column=1, row=5, sticky='w')
 
+        # Format
+        ttk.Label(self, text='Format:').grid(column=0, row=6, sticky='w')
+        fmt_frame = ttk.Frame(self)
+        fmt_frame.grid(column=1, row=6, sticky='w', columnspan=3)
+        ttk.Radiobutton(fmt_frame, text='SVG', variable=self.format_var, value='SVG').pack(side='left', padx=(0, 10))
+        ttk.Radiobutton(fmt_frame, text='PNG', variable=self.format_var, value='PNG').pack(side='left')
+
         # Generate button and status
         self.generate_btn = ttk.Button(self, text='Generate', command=self.on_generate)
-        self.generate_btn.grid(column=1, row=6, sticky='w', pady=(8,0))
+        self.generate_btn.grid(column=1, row=7, sticky='w', pady=(8,0))
 
         self.open_btn = ttk.Button(self, text='Open Output', command=self.open_output)
-        self.open_btn.grid(column=2, row=6, sticky='w', pady=(8,0))
+        self.open_btn.grid(column=2, row=7, sticky='w', pady=(8,0))
 
         self.status_var = tk.StringVar(value='Ready')
-        ttk.Label(self, textvariable=self.status_var).grid(column=0, row=7, columnspan=4, sticky='w', pady=(8,0))
+        ttk.Label(self, textvariable=self.status_var).grid(column=0, row=8, columnspan=4, sticky='w', pady=(8,0))
 
         for i in range(4):
             self.columnconfigure(i, weight=1)
 
+    def _on_format_change(self, *_):
+        """Auto-update the output file extension when the format changes."""
+        current = self.output_var.get().strip()
+        if not current:
+            return
+        p = Path(current)
+        new_ext = '.svg' if self.format_var.get() == 'SVG' else '.png'
+        if p.suffix.lower() in ('.svg', '.png'):
+            self.output_var.set(str(p.with_suffix(new_ext)))
+
     def browse_output(self):
-        path = filedialog.asksaveasfilename(defaultextension='.svg', filetypes=[('SVG files','*.svg'),('All files','*.*')])
+        is_svg = self.format_var.get() == 'SVG'
+        ext = '.svg' if is_svg else '.png'
+        ftypes = [('SVG files', '*.svg'), ('All files', '*.*')] if is_svg else [('PNG files', '*.png'), ('All files', '*.*')]
+        path = filedialog.asksaveasfilename(defaultextension=ext, filetypes=ftypes)
         if path:
             self.output_var.set(path)
 
@@ -116,7 +138,7 @@ class QRGui(ttk.Frame):
 
         def worker():
             try:
-                self.generator.generate_qr_svg(
+                common = dict(
                     data=data,
                     output_path=output if output else None,
                     logo_path=logo,
@@ -126,6 +148,10 @@ class QRGui(ttk.Frame):
                     border=int(self.border_var.get()),
                     logo_size_ratio=float(self.logo_size_var.get())
                 )
+                if self.format_var.get() == 'PNG':
+                    self.generator.generate_qr_png(**common)
+                else:
+                    self.generator.generate_qr_svg(**common)
 
                 self.set_status(f'Saved: {output}')
                 # Offer to open the file
@@ -156,7 +182,7 @@ class QRGui(ttk.Frame):
 
 def main():
     root = tk.Tk()
-    root.geometry('760x340')
+    root.geometry('760x370')
     app = QRGui(master=root)
     root.mainloop()
 
